@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35931.197 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FloppyEngine", "FloppyEngine\FloppyEngine.vcxproj", "{F673FADB-11B9-4EC1-9C24-A87D21A2D40F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Woogeok", "Woogeok\Woogeok.vcxproj", "{4F32E282-7075-4BB5-A9E0-42A9406F291A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F673FADB-11B9-4EC1-9C24-A87D21A2D40F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F673FADB-11B9-4EC1-9C24-A87D21A2D40F}.Debug|Win32.Build.0 = Debug|Win32
+		{F673FADB-11B9-4EC1-9C24-A87D21A2D40F}.Release|Win32.ActiveCfg = Release|Win32
+		{F673FADB-11B9-4EC1-9C24-A87D21A2D40F}.Release|Win32.Build.0 = Release|Win32
+		{4F32E282-7075-4BB5-A9E0-42A9406F291A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4F32E282-7075-4BB5-A9E0-42A9406F291A}.Debug|Win32.Build.0 = Debug|Win32
+		{4F32E282-7075-4BB5-A9E0-42A9406F291A}.Release|Win32.ActiveCfg = Release|Win32
+		{4F32E282-7075-4BB5-A9E0-42A9406F291A}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DD5E379D-D773-4B03-B406-51AB2D323A86}
+	EndGlobalSection
+EndGlobal
