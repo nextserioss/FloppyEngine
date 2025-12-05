@@ -12,6 +12,7 @@ using namespace std;
 
 class GameState;
 class Composite;
+class BoxCollider;
 
 class TweenArg
 {
@@ -39,11 +40,12 @@ public:
 	static const int TYPE_MOVE = 0;
 	static const int TYPE_MOVE_X = 1;
 	static const int TYPE_MOVE_Y = 2;
-	static const int TYPE_SCALE = 3;
-	static const int TYPE_FRAME = 4;
-	static const int TYPE_DELAY = 5;
-	static const int TYPE_END_CALLBK = 6;
-	static const int TYPE_FRAME_END_CALLBK = 7;
+	static const int TYPE_MOVE_SCALE = 3;
+	static const int TYPE_SCALE = 4;
+	static const int TYPE_FRAME = 5;
+	static const int TYPE_DELAY = 6;
+	static const int TYPE_END_CALLBK = 7;
+	static const int TYPE_FRAME_END_CALLBK = 8;
 
 	string m_strTweenName;
 	int m_nType;
@@ -51,7 +53,11 @@ public:
 	float m_fStartX;
 	float m_fStartY;
 	float m_fEndX;
-	float m_fEndY;	
+	float m_fEndY;
+	float m_fSecondStartX;
+	float m_fSecondStartY;
+	float m_fSecondEndX;
+	float m_fSecondEndY;
 	float m_fDurationSecond;
 	float m_fInterval;
 	vector<string> m_frameImage;
@@ -64,6 +70,7 @@ class Transform : public Component
 private:
 	GameState* m_pState;
 	Composite* m_pComposite;
+	BoxCollider* m_pBoxCollider = NULL;
 public:
 	float m_fX = 0;
 	float m_fY = 0;
@@ -73,6 +80,7 @@ public:
 public:
 	Transform();
 	void Add(GameEngine* gameEngine, Composite* composite);
+	void Init(BoxCollider* boxCollider);
 	void Update(GameEngine* gameEngine);	
 	void Draw(GameEngine* gameEngine);
 	void CleanUp(GameEngine* gameEngine);
@@ -90,10 +98,11 @@ private:
 	queue<TweenArg> m_FrameSequnce;
 
 	typedef void (Transform::*TWEEN_FUNC)(TweenArg);
-	TWEEN_FUNC m_pfnTween[8];
+	TWEEN_FUNC m_pfnTween[9];
 	void MoveTween(TweenArg arg);
 	void MoveXTween(TweenArg arg);
 	void MoveYTween(TweenArg arg);
+	void MoveScaleTween(TweenArg arg);
 	void ScaleTween(TweenArg arg);
 	void FrameTween(TweenArg arg);
 	void DelayTween(TweenArg arg);
@@ -129,6 +138,7 @@ public:
 	void TweenMove(int nEaseType, float fStartX, float fStartY, float fEndX, float fEndY, float fDurationSecond);
 	void TweenMoveX(int nEaseType, float fStartX, float fEndX, float fDurationSecond);
 	void TweenMoveY(int nEaseType, float fStartY, float fEndY, float fDurationSecond);
+	void TweenMoveScale(int nEaseType, float fStartX, float fStartY, float fEndX, float fEndY, float fSecondStartX, float fSecondStartY, float fSecondEndX, float fSecondEndY, float fDurationSecond);
 	void TweenScale(int nEaseType, float fStartX, float fStartY, float fEndX, float fEndY, float fDurationSecond);
 	void TweenFrame(vector<string> frameImage, float fInterval);
 	void FrameEndCallback(GameState* pState, string strAniName);
@@ -142,4 +152,7 @@ public:
 	void FrameTweenStop();
 	bool IsTween();
 	bool IsFrameTween();
+	void SetXY(float x, float y);
+	void SetX(float x);
+	void SetY(float y);
 };

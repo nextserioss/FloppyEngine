@@ -18,8 +18,10 @@ private:
 	Composite* m_Composite;
 	Transform* m_Transform;
 	int m_nImageType;
+	bool m_bModifyImage;
 	HDC m_hRendererMemDC;
 	HBITMAP m_hBitmap;
+	HBITMAP m_hModifyBitmap;
 	HBITMAP m_hMaskBitmap;
 	HBITMAP m_hOldBitmap;
 	BITMAP  m_BitmapInfo;
@@ -36,4 +38,5 @@ public:
 	int GetHeight();
 	float GetWidthF();
 	float GetHeightF();
+	void SetModifyImage(bool bModify);
 };

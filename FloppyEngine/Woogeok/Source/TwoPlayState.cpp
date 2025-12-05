@@ -3,6 +3,59 @@
 #include "../Header/IntroState.h"
 #include "../Header/TwoPlayState.h"
 
+const bool CLOUD_FLIP[] = { true, false, true, false };
+const float CLOUD_X[] = { 640.0f, 940.0f, 1240.0f, 1480.0f };
+const float CLOUD_Y[] = { 30.0f, 85.0f, 55.0f, 105.0f };
+const float CLOUD_TIME[] = { 45.0f, 38.0f, 55.0f, 70.0f };
+const float CLOUD_DIST_Y = -100.0f;
+
+//케릭터
+#define INIT_X 280
+#define INIT_Y 388
+#define PLAYER_BOXCOLLISION_OFFSET 5
+#define FRAME_ANIMATION_INTERVAL 0.12f
+#define SPEEDUP_SPEED 340
+#define MAX_LEFT_MOVE 0 
+#define MAX_RIGHT_MOVE 560
+#define JUMP_TIME 0.5f
+#define JUMP_Y 270
+#define INVICIVLE_TIME 2.0f
+#define CHARACTER_SPEED_UP_TIME 3.0f
+
+//피격 이펙트
+#define DAMAGE_RED_DELAY_TIME 0.1f
+
+//자동차
+#define CAR_BOXCOLLISION_OFFSET 5
+#define CAR_INIT_X -100.0f
+#define CAR_INIT_Y 440.0f
+#define CAR_LEFT_X_MAX -100.0f
+#define CAR_RIGHT_X_MAX 640.0f
+#define CAR_ARROW_LEFT_MOVE_INIT_X 590.0f
+#define CAR_ARROW_RIGHT_MOVE_INIT_X -0.0f
+#define MIN_CAR_INTERVAL 3.0f
+#define MINUS_CAR_INTERVAL 0.5f
+
+//과일
+#define LOW_FRUIT 0
+#define HIGH_FRUIT 1
+#define BAD_FRUIT 2
+#define SPECTIAL_FRUIT 3
+#define DOWN_Y 500.0f
+#define MAX_DOWN_INTERVAL 0.1f
+#define MAX_DOWN_SPEED 1.7f
+#define MIN_LOW_FRUIT_RATE 10
+#define MIN_HIGH_FRUIT_RATE 30
+#define MINUS_FRUIT_DOWN_INTERVAL 0.1f
+#define MINUS_FRUIT_DOWN_SPEED 0.2f
+#define MINUS_FRUIT_RATE 5
+
+//과일 이펙트
+#define FRUIT_EFFECT_TIME 0.05f
+
+//일정 시간 마다 난이도가 올라간다.
+#define DIFICULTY_TIME 7.0f
+
 void TwoPlayState::Init(GameEngine* game)
 {
 	SpriteManager::GetInstance()->CreateSprite("Background.bmp", IDC_BACKGROUND, false);
@@ -34,7 +87,7 @@ void TwoPlayState::Init(GameEngine* game)
 	SpriteManager::GetInstance()->CreateSprite("Cloud_2.bmp", IDC_CLOUD_2, true);
 	SpriteManager::GetInstance()->CreateSprite("Red.bmp", IDC_RED, true);
 
-	for (int i = 0; i < LAYER_NUM; i++)
+	for (int i = 0; i < TWOPLAYSTATE_LAYER_NUM; i++)
 	{
 		char layerName[128];
 		sprintf_s(layerName, "layer_%d", i);
@@ -45,14 +98,6 @@ void TwoPlayState::Init(GameEngine* game)
 	Composite* background = Composite::CreateSprite(game, "Background", "Background.bmp");
 	m_Layer[0]->Add(background);
 
-	Composite* scoreBack = Composite::CreateSprite(game, "ScoreBack", "ScoreTextBack.bmp");
-	m_Layer[2]->Add(scoreBack);
-
-	Composite* twoScoreBack = Composite::CreateSprite(game, "TwoScoreBack", "ScoreTextBack.bmp");
-	Transform* twoScoreBackTrans = (Transform*)twoScoreBack->FindComponent(COMPONENT_NAME[TRANSFORM]);
-	twoScoreBackTrans->m_fX = 640 - 120;
-	m_Layer[2]->Add(twoScoreBack);
-
 	CloudInit(game);
 	PlayerInit(game);
 	TwoPlayerInit(game);
@@ -60,23 +105,27 @@ void TwoPlayState::Init(GameEngine* game)
 	CarInit(game);
 	UIInit(game);
 	DamageInit(game);
+	SoundInit(game);
+}
 
+void TwoPlayState::SoundInit(GameEngine* game)
+{
 	//사운드
 	Composite* soundBGMComp = Composite::CreateBGMSound(game, "BGMSound", "WoogeokBGM.mp3");
-	m_BGMSound = (Sound*)soundBGMComp->FindComponent(COMPONENT_NAME[SOUND]);
+	m_BGMSound = (Sound*)soundBGMComp->FindComponent(SOUND);
 	m_Layer[2]->Add(soundBGMComp);
 	m_BGMSound->Play();
 
 	Composite* soundEatComp = Composite::CreateSound(game, "EatSound", "Eat_0.wav");
-	m_EatSound = (Sound*)soundEatComp->FindComponent(COMPONENT_NAME[SOUND]);
+	m_EatSound = (Sound*)soundEatComp->FindComponent(SOUND);
 	m_Layer[2]->Add(soundEatComp);
 
 	Composite* soundSpecialEatComp = Composite::CreateSound(game, "SpecialSound", "Eat_1.wav");
-	m_SpecialEatSound = (Sound*)soundSpecialEatComp->FindComponent(COMPONENT_NAME[SOUND]);
+	m_SpecialEatSound = (Sound*)soundSpecialEatComp->FindComponent(SOUND);
 	m_Layer[2]->Add(soundSpecialEatComp);
 
 	Composite* soundDamageComp = Composite::CreateSound(game, "DamageSound", "Damage.wav");
-	m_DamageSound = (Sound*)soundDamageComp->FindComponent(COMPONENT_NAME[SOUND]);
+	m_DamageSound = (Sound*)soundDamageComp->FindComponent(SOUND);
 	m_Layer[2]->Add(soundDamageComp);
 
 	if (RegDataManager::GetInstance()->ReadDWORDValue("SoundOff") == 0)
@@ -97,14 +146,14 @@ void TwoPlayState::Init(GameEngine* game)
 
 void TwoPlayState::CloudInit(GameEngine* game)
 {
-	for (int i = 0; i < MAX_CLOUD_NUM; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_CLOUD_NUM; i++)
 	{
 		char strCloud[128];
 		sprintf_s(strCloud, "Cloud_%d", i);
 		char strCloudImage[128];
 		sprintf_s(strCloudImage, "Cloud_%d.bmp", i % 3);
 		Composite* cloud = Composite::CreateSprite(game, strCloud, strCloudImage);
-		m_CloudTrans[i] = (Transform*)cloud->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_CloudTrans[i] = (Transform*)cloud->FindComponent(TRANSFORM);
 		m_CloudTrans[i]->m_fX = CLOUD_X[i];
 		m_CloudTrans[i]->m_fY = CLOUD_Y[i];
 		m_Layer[0]->Add(cloud);
@@ -121,8 +170,8 @@ void TwoPlayState::CloudInit(GameEngine* game)
 void TwoPlayState::PlayerInit(GameEngine* game)
 {
 	m_PlayerComp = Composite::CreateSpriteBox(game, "Player", "Player_0.bmpRGB239148099", PLAYER_BOXCOLLISION_OFFSET, PLAYER_BOXCOLLISION_OFFSET);
-	m_PlayerBoxCollider = (BoxCollider*)m_PlayerComp->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-	m_PlayerTrans = (Transform*)m_PlayerComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_PlayerBoxCollider = (BoxCollider*)m_PlayerComp->FindComponent(BOXCOLLIDER);
+	m_PlayerTrans = (Transform*)m_PlayerComp->FindComponent(TRANSFORM);
 	m_PlayerTrans->m_fX = INIT_X;
 	m_PlayerTrans->m_fY = INIT_Y;
 	m_Layer[2]->Add(m_PlayerComp);
@@ -141,8 +190,8 @@ void TwoPlayState::PlayerInit(GameEngine* game)
 void TwoPlayState::TwoPlayerInit(GameEngine* game)
 {
 	m_TwoPlayerComp = Composite::CreateSpriteBox(game, "Player", "Player_0.bmpRGB099189239", PLAYER_BOXCOLLISION_OFFSET, PLAYER_BOXCOLLISION_OFFSET);
-	m_TwoPlayerBoxCollider = (BoxCollider*)m_TwoPlayerComp->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-	m_TwoPlayerTrans = (Transform*)m_TwoPlayerComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_TwoPlayerBoxCollider = (BoxCollider*)m_TwoPlayerComp->FindComponent(BOXCOLLIDER);
+	m_TwoPlayerTrans = (Transform*)m_TwoPlayerComp->FindComponent(TRANSFORM);
 	m_TwoPlayerTrans->m_fX = INIT_X;
 	m_TwoPlayerTrans->m_fY = INIT_Y;
 	m_Layer[2]->Add(m_TwoPlayerComp);
@@ -161,7 +210,7 @@ void TwoPlayState::TwoPlayerInit(GameEngine* game)
 void TwoPlayState::DamageInit(GameEngine* game)
 {
 	m_DamageRedComp = Composite::CreateSprite(game, "DamageRed", "Red.bmp");
-	m_DamageRedTrans = (Transform*)m_DamageRedComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_DamageRedTrans = (Transform*)m_DamageRedComp->FindComponent(TRANSFORM);
 	m_DamageRedTrans->m_fScaleX = 640;
 	m_DamageRedTrans->m_fScaleY = 480;
 	m_Layer[2]->Add(m_DamageRedComp);
@@ -170,24 +219,24 @@ void TwoPlayState::DamageInit(GameEngine* game)
 
 void TwoPlayState::FruitInit(GameEngine* game)
 {
-	for (int i = 0; i < MAX_FRUIT; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_FRUIT; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "fruit_%d", i);
 		m_FruitComp[i] = Composite::CreateSpriteBox(game, compName, "Fruit.bmpRGB189230074", 0, 0);
-		m_FruitRenderer[i] = (Renderer*)m_FruitComp[i]->FindComponent(COMPONENT_NAME[RENDERER]);
-		m_FruitBoxCollider[i] = (BoxCollider*)m_FruitComp[i]->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-		m_FruitTrans[i] = (Transform*)m_FruitComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_FruitRenderer[i] = (Renderer*)m_FruitComp[i]->FindComponent(RENDERER);
+		m_FruitBoxCollider[i] = (BoxCollider*)m_FruitComp[i]->FindComponent(BOXCOLLIDER);
+		m_FruitTrans[i] = (Transform*)m_FruitComp[i]->FindComponent(TRANSFORM);
 		m_FruitTrans[i]->m_fY = -m_FruitRenderer[i]->GetHeightF();
 		m_Layer[1]->Add(m_FruitComp[i]);
 	}
 
-	for (int i = 0; i < MAX_FRUIT_EFFECT; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_FRUIT_EFFECT; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "fruitEffect_%d", i);
 		m_FruitEffectComp[i] = Composite::CreateSpriteBox(game, compName, "FruitEffect_0.bmp", 0, 0);
-		m_FruitEffectTrans[i] = (Transform*)m_FruitEffectComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_FruitEffectTrans[i] = (Transform*)m_FruitEffectComp[i]->FindComponent(TRANSFORM);
 		m_Layer[2]->Add(m_FruitEffectComp[i]);
 		m_FruitEffectComp[i]->SetEnable(false);
 	}
@@ -200,25 +249,25 @@ void TwoPlayState::FruitInit(GameEngine* game)
 }
 void TwoPlayState::CarInit(GameEngine* game)
 {
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_CAR; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "Car_%d", i);
 		m_CarComp[i] = Composite::CreateSpriteBox(game, compName, "Car.bmp", CAR_BOXCOLLISION_OFFSET, CAR_BOXCOLLISION_OFFSET);
-		m_CarBoxCollider[i] = (BoxCollider*)m_CarComp[i]->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-		m_CarTrans[i] = (Transform*)m_CarComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_CarBoxCollider[i] = (BoxCollider*)m_CarComp[i]->FindComponent(BOXCOLLIDER);
+		m_CarTrans[i] = (Transform*)m_CarComp[i]->FindComponent(TRANSFORM);
 		m_CarTrans[i]->m_fX = CAR_INIT_X;
 		m_CarTrans[i]->m_fY = CAR_INIT_Y;
 		m_Layer[1]->Add(m_CarComp[i]);
 	}
 
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_CAR; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "CarArrow_%d", i);
 		m_CarArrowComp[i] = Composite::CreateSprite(game, compName, "RightArrow.bmp");
-		m_CarArrowRenderer[i] = (Renderer*)m_CarArrowComp[i]->FindComponent(COMPONENT_NAME[RENDERER]);
-		m_CarArrowTrans[i] = (Transform*)m_CarArrowComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_CarArrowRenderer[i] = (Renderer*)m_CarArrowComp[i]->FindComponent(RENDERER);
+		m_CarArrowTrans[i] = (Transform*)m_CarArrowComp[i]->FindComponent(TRANSFORM);
 		m_CarArrowTrans[i]->m_fX = -100.0f;
 		m_CarArrowTrans[i]->m_fY = CAR_INIT_Y;
 		m_Layer[1]->Add(m_CarArrowComp[i]);
@@ -228,42 +277,50 @@ void TwoPlayState::CarInit(GameEngine* game)
 
 void TwoPlayState::UIInit(GameEngine* game)
 {
+	Composite* scoreBack = Composite::CreateSprite(game, "ScoreBack", "ScoreTextBack.bmp");
+	m_Layer[2]->Add(scoreBack);
+
+	Composite* twoScoreBack = Composite::CreateSprite(game, "TwoScoreBack", "ScoreTextBack.bmp");
+	Transform* twoScoreBackTrans = (Transform*)twoScoreBack->FindComponent(TRANSFORM);
+	twoScoreBackTrans->m_fX = 640 - 120;
+	m_Layer[2]->Add(twoScoreBack);
+
 	sprintf_s(m_Score, "RedScore : %d", m_nScore);
-	m_ScoreComp = Composite::CreateText(game, "Score", m_Score);
-	m_ScoreText = (Text*)m_ScoreComp->FindComponent(COMPONENT_NAME[TEXTCOMP]);
-	Transform* scoreText = (Transform*)m_ScoreComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_ScoreComp = Composite::CreateTextColorFontSize(game, "Score", m_Score, RGB(255, 255, 255), 13);
+	m_ScoreText = (Text*)m_ScoreComp->FindComponent(TEXTCOMP);
+	Transform* scoreText = (Transform*)m_ScoreComp->FindComponent(TRANSFORM);
 	scoreText->m_fX = 3;
-	scoreText->m_fY = 4;
+	scoreText->m_fY = 6;
 	m_Layer[2]->Add(m_ScoreComp);
 
-	for (int i = 0; i < MAX_HEART; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_HEART; i++)
 	{
 		m_HeartComp[i] = Composite::CreateSprite(game, "Heart", "Heart.bmpRGB255000074");
-		m_HeartTrans[i] = (Transform*)m_HeartComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_HeartTrans[i] = (Transform*)m_HeartComp[i]->FindComponent(TRANSFORM);
 		m_HeartTrans[i]->m_fX = 200.0f - (i * 35.0f);
 		m_HeartTrans[i]->m_fY = 0;
 		m_Layer[2]->Add(m_HeartComp[i]);
 	}
 
 	sprintf_s(m_TwoScore, "BlueScore : %d", m_nTwoScore);
-	m_TwoScoreComp = Composite::CreateText(game, "TwoScore", m_TwoScore);
-	m_TwoScoreText = (Text*)m_TwoScoreComp->FindComponent(COMPONENT_NAME[TEXTCOMP]);
-	Transform* twoScoreText = (Transform*)m_TwoScoreComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_TwoScoreComp = Composite::CreateTextColorFontSize(game, "TwoScore", m_TwoScore, RGB(255, 255, 255), 13);
+	m_TwoScoreText = (Text*)m_TwoScoreComp->FindComponent(TEXTCOMP);
+	Transform* twoScoreText = (Transform*)m_TwoScoreComp->FindComponent(TRANSFORM);
 	twoScoreText->m_fX = 640 - 117;
-	twoScoreText->m_fY = 4;
+	twoScoreText->m_fY = 6;
 	m_Layer[2]->Add(m_TwoScoreComp);
 
-	for (int i = 0; i < MAX_HEART; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_HEART; i++)
 	{
 		m_TwoHeartComp[i] = Composite::CreateSprite(game, "TwoHeart", "Heart.bmpRGB000107255");
-		m_TwoHeartTrans[i] = (Transform*)m_TwoHeartComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_TwoHeartTrans[i] = (Transform*)m_TwoHeartComp[i]->FindComponent(TRANSFORM);
 		m_TwoHeartTrans[i]->m_fX = 415.0f + (i * 35.0f);
 		m_TwoHeartTrans[i]->m_fY = 0;
 		m_Layer[2]->Add(m_TwoHeartComp[i]);
 	}
 
 	m_GameOverComp = Composite::CreateSprite(game, "GameOver", "GameOver.bmp");
-	m_GameOverTrans = (Transform*)m_GameOverComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_GameOverTrans = (Transform*)m_GameOverComp->FindComponent(TRANSFORM);
 	m_GameOverTrans->m_fX = 186;
 	m_GameOverTrans->m_fY = 214;
 	m_Layer[2]->Add(m_GameOverComp);
@@ -415,7 +472,7 @@ void TwoPlayState::FruitUpdate()
 		m_FruitTrans[m_nFruitIndex]->TweenMoveY(TweenArg::TYPE_EASE_IN_CIRC, 0.0f, DOWN_Y, m_nFruitDownSpeed);
 		m_FruitTrans[m_nFruitIndex]->TweenPlay();
 		m_nFruitIndex++;
-		if (m_nFruitIndex == MAX_FRUIT)
+		if (m_nFruitIndex == TWOPLAYSTATE_MAX_FRUIT)
 		{
 			m_nFruitIndex = 0;
 		}
@@ -492,7 +549,7 @@ void TwoPlayState::CarUpdate()
 			m_CarTrans[m_nCarIndex]->TweenPlay();
 		}
 		m_nCarIndex++;
-		if (m_nCarIndex == MAX_CAR)
+		if (m_nCarIndex == TWOPLAYSTATE_MAX_CAR)
 		{
 			m_nCarIndex = 0;
 		}
@@ -514,7 +571,7 @@ void TwoPlayState::CarUpdate()
 
 void TwoPlayState::CollisionUpdate(GameEngine* game)
 {
-	for (int i = 0; i < MAX_FRUIT; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_FRUIT; i++)
 	{
 		if (m_PlayerBoxCollider->intersectRect(m_FruitBoxCollider[i]->GetRect()) == true)
 		{
@@ -557,7 +614,7 @@ void TwoPlayState::CollisionUpdate(GameEngine* game)
 
 					m_HeartComp[m_nHeartIndex]->SetEnable(false);
 					m_nHeartIndex++;
-					if (m_nHeartIndex == MAX_HEART)
+					if (m_nHeartIndex == TWOPLAYSTATE_MAX_HEART)
 					{
 						DLOG("Game Over");
 						m_bGameOver = true;
@@ -588,7 +645,7 @@ void TwoPlayState::CollisionUpdate(GameEngine* game)
 		}
 	}
 
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_CAR; i++)
 	{
 		if (m_bInvincible == false)
 		{
@@ -606,7 +663,7 @@ void TwoPlayState::CollisionUpdate(GameEngine* game)
 
 				m_HeartComp[m_nHeartIndex]->SetEnable(false);
 				m_nHeartIndex++;
-				if (m_nHeartIndex == MAX_HEART)
+				if (m_nHeartIndex == TWOPLAYSTATE_MAX_HEART)
 				{
 					DLOG("Game Over");
 					m_bGameOver = true;
@@ -624,7 +681,7 @@ void TwoPlayState::CollisionUpdate(GameEngine* game)
 
 void TwoPlayState::TwoCollisionUpdate(GameEngine* game)
 {
-	for (int i = 0; i < MAX_FRUIT; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_FRUIT; i++)
 	{
 		if (m_TwoPlayerBoxCollider->intersectRect(m_FruitBoxCollider[i]->GetRect()) == true)
 		{
@@ -667,7 +724,7 @@ void TwoPlayState::TwoCollisionUpdate(GameEngine* game)
 
 					m_TwoHeartComp[m_nTwoHeartIndex]->SetEnable(false);
 					m_nTwoHeartIndex++;
-					if (m_nTwoHeartIndex == MAX_HEART)
+					if (m_nTwoHeartIndex == TWOPLAYSTATE_MAX_HEART)
 					{
 						DLOG("Game Over");
 						m_bGameOver = true;
@@ -698,7 +755,7 @@ void TwoPlayState::TwoCollisionUpdate(GameEngine* game)
 		}
 	}
 
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < TWOPLAYSTATE_MAX_CAR; i++)
 	{
 		if (m_bTwoInvincible == false)
 		{
@@ -716,7 +773,7 @@ void TwoPlayState::TwoCollisionUpdate(GameEngine* game)
 
 				m_TwoHeartComp[m_nTwoHeartIndex]->SetEnable(false);
 				m_nTwoHeartIndex++;
-				if (m_nTwoHeartIndex == MAX_HEART)
+				if (m_nTwoHeartIndex == TWOPLAYSTATE_MAX_HEART)
 				{
 					DLOG("Game Over");
 					m_bGameOver = true;
@@ -743,7 +800,7 @@ void TwoPlayState::FruitEffectStart(int nFruitIndex)
 	m_FruitEffectTrans[m_nFruitEffectIndex]->FrameEndCallback(this, fruitEffectCallbackName);
 	m_FruitEffectTrans[m_nFruitEffectIndex]->FrameTweenPlay();
 	m_nFruitEffectIndex++;
-	if (m_nFruitEffectIndex >= MAX_FRUIT_EFFECT)
+	if (m_nFruitEffectIndex >= TWOPLAYSTATE_MAX_FRUIT_EFFECT)
 	{
 		m_nFruitEffectIndex = 0;
 	}
@@ -758,7 +815,7 @@ void TwoPlayState::PalyerSpeedUpUpdate()
 		if (m_fPlayerSpeedUpTimeElapsed > CHARACTER_SPEED_UP_TIME)
 		{
 			//DLOG("Speed Default");
-			m_nPlayerSpeed = DEFAULT_SPEED;
+			m_nPlayerSpeed = TWOPLAYSTATE_DEFAULT_SPEED;
 			m_bSpeedUp = false;
 		}
 	}
@@ -788,7 +845,7 @@ void TwoPlayState::TwoPalyerSpeedUpUpdate()
 		if (m_fTwoPlayerSpeedUpTimeElapsed > CHARACTER_SPEED_UP_TIME)
 		{
 			//DLOG("Speed Default");
-			m_nTwoPlayerSpeed = DEFAULT_SPEED;
+			m_nTwoPlayerSpeed = TWOPLAYSTATE_DEFAULT_SPEED;
 			m_bTwoSpeedUp = false;
 		}
 	}

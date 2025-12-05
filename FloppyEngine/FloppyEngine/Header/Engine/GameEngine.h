@@ -29,8 +29,9 @@ public:
 	void Cleanup();
 
 	void ChangeState(GameState* state);
-	void PushState(GameState* state);
+	void PushState(GameState* state, bool bPauseDraw);
 	void PopState();
+	GameState* getState(int index);
 
 	void HandleEvents();
 	void Update();
@@ -40,7 +41,7 @@ public:
 	void Quit() { m_bRunning = false; }
 
 private:
-	// the stack of states
+	// 상태를 저장하는 벡터
 	vector<GameState*> m_States;
 
 	bool m_bRunning;

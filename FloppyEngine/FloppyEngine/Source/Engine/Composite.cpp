@@ -8,12 +8,6 @@
 #include "../../Header/Engine/Sound.h"
 #include <typeinfo>
 
-string Composite::m_sComponentName[] = { string(typeid(Composite).name()),
-										string(typeid(Transform).name()),
-										string(typeid(Renderer).name()),
-										string(typeid(Text).name()),
-										string(typeid(BoxCollider).name()),
-										string(typeid(Sound).name()) };
 
 Composite* Composite::Create()
 {
@@ -40,6 +34,8 @@ Composite* Composite::CreateSpriteBox(GameEngine* gameEngine, string id, string 
 	comp->Add(renderer);
 	BoxCollider* boxCollider = new BoxCollider(nOffsetXWidth, nOffsetYHeight, renderer->GetWidth() - nOffsetXWidth, renderer->GetHeight() - nOffsetYHeight);
 	comp->Add(boxCollider);
+	Transform* trans = (Transform*)comp->FindComponent(TRANSFORM);
+	trans->Init(boxCollider);
 	return comp;
 }
 
@@ -50,6 +46,8 @@ Composite* Composite::CreateSpriteBox(GameEngine* gameEngine, string id, string 
 	comp->Add(renderer);
 	BoxCollider* boxCollider = new BoxCollider(nOffsetX, nOffsetY, nWidth, nHeight);
 	comp->Add(boxCollider);
+	Transform* trans = (Transform*)comp->FindComponent(TRANSFORM);
+	trans->Init(boxCollider);
 	return comp;
 }
 
@@ -61,7 +59,23 @@ Composite* Composite::CreateText(GameEngine* gameEngine, string id, string strTe
 	return comp;
 }
 
-Composite * Composite::CreateBGMSound(GameEngine * gameEngine, string id, string strSoundFile)
+Composite* Composite::CreateTextColor(GameEngine* gameEngine, string id, string strText, COLORREF color)
+{
+	Composite* comp = new Composite(gameEngine, id);
+	Text* text = new Text(strText, color);
+	comp->Add(text);
+	return comp;
+}
+
+Composite* Composite::CreateTextColorFontSize(GameEngine* gameEngine, string id, string strText, COLORREF color, int size)
+{
+	Composite* comp = new Composite(gameEngine, id);
+	Text* text = new Text(strText, color, size);
+	comp->Add(text);
+	return comp;
+}
+
+Composite* Composite::CreateBGMSound(GameEngine * gameEngine, string id, string strSoundFile)
 {
 	Composite* comp = new Composite(gameEngine, id);
 	Sound* sound = new Sound(strSoundFile, false);
@@ -153,6 +167,11 @@ void Composite::CleanUp(GameEngine* gameEngine)
 	}	
 
 	RemoveAllComponent();
+}
+
+bool Composite::IsEnable()
+{
+	return m_bEnable;
 }
 
 void Composite::SetEnable(bool bEnable)

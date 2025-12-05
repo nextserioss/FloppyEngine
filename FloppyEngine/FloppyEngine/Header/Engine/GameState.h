@@ -10,6 +10,8 @@ public:
 	//메인 컴포지트는 각 상태마다 하나만 반드시 존재 한다.
 	//메인 컴포지트에 많은 컴포지트 또는 컴포넌트들을 추가하여 상태를 구성 한다.
 	Composite m_MainComposite;
+	//상태가 멈춰 있어도 계속 그려질지 여부
+	bool m_bPauseDraw = true;
 
 	virtual void Init(GameEngine* game) = 0;
 	virtual void Cleanup() = 0;

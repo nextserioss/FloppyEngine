@@ -2,24 +2,25 @@
 
 #include <vector>
 #include <string>
+#include <Windows.h>
 #include "Component.h"
+#include <typeinfo>
 
 using namespace std;
 
 class GameEngine;
 
-#define COMPOSITE 0
-#define TRANSFORM 1
-#define RENDERER 2
-#define TEXTCOMP 3
-#define BOXCOLLIDER 4
-#define SOUND 5
-#define COMPONENT_NAME Composite::m_sComponentName 
+#define COMPOSITE string(typeid(Composite).name())
+#define TRANSFORM string(typeid(Transform).name())
+#define RENDERER string(typeid(Renderer).name())
+#define TEXTCOMP string(typeid(Text).name())
+#define BOXCOLLIDER string(typeid(BoxCollider).name())
+#define SOUND string(typeid(Sound).name())
+
 
 class Composite : public Component
 {
 public:
-	static string m_sComponentName[];
 	static Composite* Create();
 	static Composite* Create(GameEngine* gameEngine, string id);
 	static Composite* CreateSprite(GameEngine* gameEngine, string id, string strImagePath);
@@ -27,6 +28,8 @@ public:
 	static Composite* CreateSpriteBox(GameEngine* gameEngine, string id, string strImagePath, int nOffsetXWidth, int nOffsetYHeight);
 	static Composite* CreateSpriteBox(GameEngine* gameEngine, string id, string strImagePath, int nOffsetX, int nOffsetY, int nWidth, int nHeight);
 	static Composite* CreateText(GameEngine* gameEngine, string id, string strText);
+	static Composite* CreateTextColor(GameEngine* gameEngine, string id, string strText, COLORREF color);
+	static Composite* CreateTextColorFontSize(GameEngine* gameEngine, string id, string strText, COLORREF color, int size);
 	static Composite* CreateBGMSound(GameEngine* gameEngine, string id, string strSoundFile);
 	static Composite* CreateSound(GameEngine* gameEngine, string id, string strSoundFile);
 private:
@@ -47,6 +50,7 @@ public:
 	void Draw(GameEngine* gameEngine);
 	void CleanUp(GameEngine* gameEngine);
 
+	bool IsEnable();
 	void SetEnable(bool bEnable);
 	//가장 먼저 찾은 컴포넌트 하나를 리턴해준다.
 	Component* FindComponent(string strComponent);

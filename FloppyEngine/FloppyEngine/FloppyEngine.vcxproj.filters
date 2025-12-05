@@ -98,5 +98,8 @@
     <ClInclude Include="Header\Engine\Sound.h">
       <Filter>Header Files\Engine</Filter>
     </ClInclude>
+    <ClInclude Include="Header\Engine\Types.h">
+      <Filter>Header Files\Engine</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

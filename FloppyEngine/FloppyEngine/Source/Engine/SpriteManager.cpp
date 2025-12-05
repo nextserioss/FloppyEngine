@@ -8,11 +8,284 @@ SpriteManager::SpriteManager()
 
 }
 
+void SpriteManager::ModifyDIBPaletteEntry(HBITMAP hbmColour, COLORREF crTarget, COLORREF crModify)
+{
+	if (hbmColour == NULL)
+	{
+		return;
+	}
+	BITMAP bm;
+	GetObject(hbmColour, sizeof(BITMAP), &bm);
+	// 8비트 이하만 지원
+	if (bm.bmBitsPixel > 8)
+	{
+		return;
+	}
+	int nColorTableEntries = (1 << bm.bmBitsPixel);
+	// BITMAPINFO 구조체 할당
+	DWORD dwBiSize = sizeof(BITMAPINFOHEADER) + nColorTableEntries * sizeof(RGBQUAD);
+	BITMAPINFO* pbi = (BITMAPINFO*)new BYTE[dwBiSize];
+	if (!pbi)
+	{
+		return;
+	}
+	ZeroMemory(pbi, dwBiSize);
+	pbi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	pbi->bmiHeader.biWidth = bm.bmWidth;
+	pbi->bmiHeader.biHeight = bm.bmHeight;
+	pbi->bmiHeader.biPlanes = 1;
+	pbi->bmiHeader.biBitCount = bm.bmBitsPixel;
+	pbi->bmiHeader.biCompression = BI_RGB;
+	pbi->bmiHeader.biClrUsed = nColorTableEntries;
+	// 픽셀 데이터 크기 계산
+	DWORD dwBytesPerLine = ((bm.bmWidth * bm.bmBitsPixel + 31) / 32) * 4;
+	DWORD dwTotalSize = dwBytesPerLine * bm.bmHeight;
+	BYTE* pPixels = new BYTE[dwTotalSize];
+	if (!pPixels)
+	{
+		delete[](BYTE*)pbi;
+		return;
+	}
+	// 픽셀 데이터 및 팔레트 읽기
+	HDC hdc = GetDC(NULL);
+	int nScanlines = GetDIBits(hdc, hbmColour, 0, bm.bmHeight, pPixels, pbi, DIB_RGB_COLORS);
+	ReleaseDC(NULL, hdc);
+	if (nScanlines == 0)
+	{
+		delete[] pPixels;
+		delete[](BYTE*)pbi;
+		return;
+	}
+	// 팔레트에서 타겟 색상을 변경
+	RGBQUAD* pPalette = pbi->bmiColors;
+	for (int i = 0; i < nColorTableEntries; ++i)
+	{
+		if (pPalette[i].rgbRed == GetRValue(crTarget) &&
+			pPalette[i].rgbGreen == GetGValue(crTarget) &&
+			pPalette[i].rgbBlue == GetBValue(crTarget))
+		{
+			/*
+			DLOG("Modify Palette Entry: Index %d from (%d,%d,%d) to (%d,%d,%d)", i,
+				pPalette[i].rgbRed, pPalette[i].rgbGreen, pPalette[i].rgbBlue,
+				GetRValue(crModify), GetGValue(crModify), GetBValue(crModify));
+			*/
+			pPalette[i].rgbRed = GetRValue(crModify);
+			pPalette[i].rgbGreen = GetGValue(crModify);
+			pPalette[i].rgbBlue = GetBValue(crModify);
+		}
+	}
+
+	// 올바른 LOGPALETTE 생성
+	DWORD dwLogPalSize = sizeof(LOGPALETTE) + (nColorTableEntries - 1) * sizeof(PALETTEENTRY);
+	LOGPALETTE* pLogPal = (LOGPALETTE*)new BYTE[dwLogPalSize];
+	if (!pLogPal)
+	{
+		delete[] pPixels;
+		delete[](BYTE*)pbi;
+		return;
+	}
+
+	pLogPal->palVersion = 0x300;
+	pLogPal->palNumEntries = (WORD)nColorTableEntries;
+	for (int i = 0; i < nColorTableEntries; ++i)
+	{
+		pLogPal->palPalEntry[i].peRed = pPalette[i].rgbRed;
+		pLogPal->palPalEntry[i].peGreen = pPalette[i].rgbGreen;
+		pLogPal->palPalEntry[i].peBlue = pPalette[i].rgbBlue;
+		pLogPal->palPalEntry[i].peFlags = 0;
+	}
+
+	// 비트맵 업데이트
+	HDC memDC = CreateCompatibleDC(NULL);
+	HBITMAP hOldBitmap = (HBITMAP)SelectObject(memDC, hbmColour);
+
+	// 논리 팔레트 생성 및 선택
+	HPALETTE hPal = CreatePalette(pLogPal);
+	HPALETTE hOldPal = NULL;
+	if (hPal)
+	{
+		hOldPal = SelectPalette(memDC, hPal, FALSE);
+		RealizePalette(memDC);
+
+		// SetDIBColorTable 호출 (팔레트 직접 수정)
+		SetDIBColorTable(memDC, 0, nColorTableEntries, pbi->bmiColors);
+	}
+
+	// SetDIBits 호출
+	SetDIBits(memDC, hbmColour, 0, bm.bmHeight, pPixels, pbi, DIB_RGB_COLORS);
+
+	// 정리
+	SelectObject(memDC, hOldBitmap);
+	if (hPal)
+	{
+		if (hOldPal) SelectPalette(memDC, hOldPal, FALSE);
+		DeleteObject(hPal);
+	}
+	DeleteDC(memDC);
+
+	delete[] pLogPal;
+	delete[] pPixels;
+	delete[](BYTE*)pbi;
+}
+
+HBITMAP SpriteManager::CreateTintedBitmap(HBITMAP hbmColour, COLORREF crTint, float fBrightness)
+{
+	if (hbmColour == NULL)
+	{
+		return NULL;
+	}
+
+	BITMAP bm;
+	GetObject(hbmColour, sizeof(BITMAP), &bm);
+
+	// 8비트 이하만 지원
+	if (bm.bmBitsPixel > 8)
+	{
+		return NULL;
+	}
+
+	int nColorTableEntries = (1 << bm.bmBitsPixel);
+
+	// BITMAPINFO 구조체 할당
+	DWORD dwBiSize = sizeof(BITMAPINFOHEADER) + nColorTableEntries * sizeof(RGBQUAD);
+	BITMAPINFO* pbi = (BITMAPINFO*)new BYTE[dwBiSize];
+	if (!pbi)
+	{
+		return NULL;
+	}
+
+	ZeroMemory(pbi, dwBiSize);
+	pbi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	pbi->bmiHeader.biWidth = bm.bmWidth;
+	pbi->bmiHeader.biHeight = bm.bmHeight;
+	pbi->bmiHeader.biPlanes = 1;
+	pbi->bmiHeader.biBitCount = bm.bmBitsPixel;
+	pbi->bmiHeader.biCompression = BI_RGB;
+	pbi->bmiHeader.biClrUsed = nColorTableEntries;
+
+	// 픽셀 데이터 크기 계산
+	DWORD dwBytesPerLine = ((bm.bmWidth * bm.bmBitsPixel + 31) / 32) * 4;
+	DWORD dwTotalSize = dwBytesPerLine * bm.bmHeight;
+	BYTE* pPixels = new BYTE[dwTotalSize];
+	if (!pPixels)
+	{
+		delete[](BYTE*)pbi;
+		return NULL;
+	}
+
+	// 픽셀 데이터 및 팔레트 읽기
+	HDC hdc = GetDC(NULL);
+	int nScanlines = GetDIBits(hdc, hbmColour, 0, bm.bmHeight, pPixels, pbi, DIB_RGB_COLORS);
+	ReleaseDC(NULL, hdc);
+
+	if (nScanlines == 0)
+	{
+		delete[] pPixels;
+		delete[](BYTE*)pbi;
+		return NULL;
+	}
+
+	// 팔레트의 각 색상을 회색으로 변환 후 밝기 조정 및 Multiply 블렌딩
+	RGBQUAD* pPalette = pbi->bmiColors;
+	BYTE tintR = GetRValue(crTint);
+	BYTE tintG = GetGValue(crTint);
+	BYTE tintB = GetBValue(crTint);
+
+	// 밝기 값 클램핑 (일반적으로 0.0 ~ 2.0 범위)
+	if (fBrightness < 0.0f) fBrightness = 0.0f;
+
+	for (int i = 0; i < nColorTableEntries; ++i)
+	{
+		BYTE r = pPalette[i].rgbRed;
+		BYTE g = pPalette[i].rgbGreen;
+		BYTE b = pPalette[i].rgbBlue;
+
+		// 완전 파란색(0, 0, 255)은 완전 검은색으로 변경
+		if (r == 0 && g == 0 && b == 255)
+		{
+			pPalette[i].rgbRed = 0;
+			pPalette[i].rgbGreen = 0;
+			pPalette[i].rgbBlue = 0;
+			continue;
+		}
+
+		// 그레이스케일 변환 (표준 luminance 공식 사용)
+		float gray = 0.299f * r + 0.587f * g + 0.114f * b;
+
+		// 밝기 조정
+		gray *= fBrightness;
+
+		// 255 초과 방지
+		if (gray > 255.0f) gray = 255.0f;
+
+		BYTE grayByte = (BYTE)gray;
+
+		// Multiply 블렌딩: (gray / 255) * (tint / 255) * 255
+		int newR = (grayByte * tintR) / 255;
+		int newG = (grayByte * tintG) / 255;
+		int newB = (grayByte * tintB) / 255;
+
+		// 255 초과 방지 (안전장치)
+		pPalette[i].rgbRed = (BYTE)(newR > 255 ? 255 : newR);
+		pPalette[i].rgbGreen = (BYTE)(newG > 255 ? 255 : newG);
+		pPalette[i].rgbBlue = (BYTE)(newB > 255 ? 255 : newB);
+	}
+
+	// 새 비트맵 생성
+	HDC memDC = CreateCompatibleDC(NULL);
+	HBITMAP hNewBitmap = CreateDIBitmap(hdc = GetDC(NULL), &pbi->bmiHeader, CBM_INIT,
+		pPixels, pbi, DIB_RGB_COLORS);
+	ReleaseDC(NULL, hdc);
+
+	if (hNewBitmap)
+	{
+		// 논리 팔레트 생성 및 적용
+		DWORD dwLogPalSize = sizeof(LOGPALETTE) + (nColorTableEntries - 1) * sizeof(PALETTEENTRY);
+		LOGPALETTE* pLogPal = (LOGPALETTE*)new BYTE[dwLogPalSize];
+
+		if (pLogPal)
+		{
+			pLogPal->palVersion = 0x300;
+			pLogPal->palNumEntries = (WORD)nColorTableEntries;
+
+			for (int i = 0; i < nColorTableEntries; ++i)
+			{
+				pLogPal->palPalEntry[i].peRed = pPalette[i].rgbRed;
+				pLogPal->palPalEntry[i].peGreen = pPalette[i].rgbGreen;
+				pLogPal->palPalEntry[i].peBlue = pPalette[i].rgbBlue;
+				pLogPal->palPalEntry[i].peFlags = 0;
+			}
+
+			HPALETTE hPal = CreatePalette(pLogPal);
+			if (hPal)
+			{
+				HBITMAP hOldBitmap = (HBITMAP)SelectObject(memDC, hNewBitmap);
+				HPALETTE hOldPal = SelectPalette(memDC, hPal, FALSE);
+				RealizePalette(memDC);
+				SetDIBColorTable(memDC, 0, nColorTableEntries, pbi->bmiColors);
+
+				SelectPalette(memDC, hOldPal, FALSE);
+				SelectObject(memDC, hOldBitmap);
+				DeleteObject(hPal);
+			}
+
+			delete[] pLogPal;
+		}
+	}
+
+	DeleteDC(memDC);
+	delete[] pPixels;
+	delete[](BYTE*)pbi;
+
+	return hNewBitmap;
+}
+
 HBITMAP SpriteManager::CreateBitmapMask(HBITMAP hbmColour, COLORREF crTransparent)
 {
 	HDC hdcSourceMem, hdcDestMem;
 	HBITMAP hbmMask;
 	BITMAP bm;
+	HBITMAP hbmOldSource, hbmOldDest;
 
 	// 1. 컬러 비트맵 정보 가져오기
 	GetObject(hbmColour, sizeof(BITMAP), &bm);
@@ -24,224 +297,27 @@ HBITMAP SpriteManager::CreateBitmapMask(HBITMAP hbmColour, COLORREF crTransparen
 	hdcDestMem = CreateCompatibleDC(0);
 
 	// 4. DC에 각 비트맵 할당
-	SelectObject(hdcSourceMem, hbmColour);
-	SelectObject(hdcDestMem, hbmMask);
+	hbmOldSource = (HBITMAP)SelectObject(hdcSourceMem, hbmColour);
+	hbmOldDest = (HBITMAP)SelectObject(hdcDestMem, hbmMask);
 
 	// 5. 투명하게 만들 색상을 소스 DC의 배경색으로 설정
 	SetBkColor(hdcSourceMem, crTransparent);
 
-	// 6. 소스에서 데스트로 BitBlt (SRCCOPY)
+	// 6. 소스에서 데스트(마스크)로 BitBlt (SRCCOPY)
 	BitBlt(hdcDestMem, 0, 0, bm.bmWidth, bm.bmHeight, hdcSourceMem, 0, 0, SRCCOPY);
 
-	// 7. 마스크를 사용하여 원본 이미지의 투명 영역을 검은색으로 변경
-	BitBlt(hdcSourceMem, 0, 0, bm.bmWidth, bm.bmHeight, hdcDestMem, 0, 0, SRCINVERT);
-
-	// 8. 사용한 DC 해제
+	// 7. 사용한 DC 선택 후 해제
+	SelectObject(hdcSourceMem, hbmOldSource);
+	SelectObject(hdcDestMem, hbmOldDest);
+	
 	DeleteDC(hdcSourceMem);
 	DeleteDC(hdcDestMem);
 
+	// 8.원본 이미지의 투명 영역을 검은색으로 변경
+	//BitBlt(hdcSourceMem, 0, 0, bm.bmWidth, bm.bmHeight, hdcDestMem, 0, 0, SRCINVERT);
+	ModifyDIBPaletteEntry(hbmColour, crTransparent, RGB(0,0,0));
+
 	return hbmMask;
-}
-
-//bm.bmBitsPixel 변수가 32비트만 동작하도록 되어있음
-void SpriteManager::ChangeBitmapColorMultiply(HBITMAP hbmColour, COLORREF crMultiplyColor)
-{
-	if (hbmColour == NULL)
-	{
-		return;
-	}
-
-	// 1. 비트맵 정보 얻기
-	BITMAP bm;
-	GetObject(hbmColour, sizeof(BITMAP), &bm);
-
-	BITMAPINFO bi;
-	ZeroMemory(&bi, sizeof(bi));
-
-	bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bi.bmiHeader.biWidth = bm.bmWidth;
-	bi.bmiHeader.biHeight = bm.bmHeight; // DIB는 음수 높이로 저장될 수 있지만, 여기서는 양수로 처리
-	bi.bmiHeader.biPlanes = 1;
-	bi.bmiHeader.biBitCount = bm.bmBitsPixel; // 32
-	bi.bmiHeader.biCompression = BI_RGB; // 압축 없음
-
-	if (bm.bmBitsPixel != 32)
-	{
-		return;
-	}
-
-	// 2. 픽셀 데이터 크기 계산 및 메모리 할당
-	// 32비트 정렬을 고려하여 실제 픽셀 데이터의 크기를 계산합니다.
-	DWORD dwWidth = bm.bmWidth;
-	DWORD dwHeight = bm.bmHeight;
-	DWORD dwBPP = bm.bmBitsPixel; // 32
-
-	// 비트맵 너비의 바이트 수 (4바이트 정렬 고려)
-	DWORD dwBytesPerLine = ((dwWidth * dwBPP + 31) / 32) * 4;
-	DWORD dwTotalSize = dwBytesPerLine * dwHeight;
-
-	BYTE* pPixels = new BYTE[dwTotalSize];
-	if (!pPixels) return;
-
-	// 3. 픽셀 데이터 읽기 (DIB 형식으로)
-	HDC hdc = GetDC(NULL);
-	int nScanlines = GetDIBits(hdc, hbmColour, 0, dwHeight, pPixels, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
-	ReleaseDC(NULL, hdc);
-
-	if (nScanlines == 0)
-	{
-		delete[] pPixels;
-		return;
-	}
-
-	// 4. 픽셀 조작
-	// 픽셀 포맷은 보통 BGR 순서입니다.
-	for (DWORD y = 0; y < dwHeight; ++y)
-	{
-		// 현재 라인의 시작 포인터 (DIB는 보통 아래에서 위로 저장되므로, y를 dwHeight-1-y로 처리할 수도 있지만, 
-		// GetDIBits를 사용하면 보통 y축 순서대로 읽습니다.)
-		BYTE* pLine = pPixels + y * dwBytesPerLine;
-
-		for (DWORD x = 0; x < dwWidth; ++x)
-		{
-			// 32비트는 4바이트
-			BYTE* pPixel = pLine + x * 4;
-
-			//(255,0,0)으로 multiply 합성
-			int R_new = (int)(pPixel[2] * GetRValue(crMultiplyColor)) / 255;   //R
-			int G_new = (int)(pPixel[1] * GetGValue(crMultiplyColor)) / 255;   //G
-			int B_new = (int)(pPixel[0] * GetBValue(crMultiplyColor)) / 255;   //B
-
-			// 클리핑
-			pPixel[2] = (BYTE)R_new; // R
-			pPixel[1] = (BYTE)G_new; // G
-			pPixel[0] = (BYTE)B_new; // B
-			// 알파 채널 (pPixel[3])은 그대로 유지하거나 255로 설정
-		}
-	}
-
-
-	// 5. 비트맵 데이터 업데이트
-	hdc = GetDC(NULL);
-	SetDIBits(hdc, hbmColour, 0, dwHeight, pPixels, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
-
-	ReleaseDC(NULL, hdc);
-	// 메모리 해제
-	delete[] pPixels;
-}
-
-//bmBitsPixel 8비트 대응 버전 (흰색 부분을 특정 색으로 변경)
-void SpriteManager::ChangeBitmapColor(HBITMAP hbmColour, COLORREF crColor)
-{
-	if (hbmColour == NULL) return;
-
-	// 1. 비트맵 정보 얻기
-	BITMAP bm;
-	GetObject(hbmColour, sizeof(BITMAP), &bm);
-
-	// BITMAPINFO 구조체 준비 - 8비트 비트맵을 위해 팔레트 공간을 고려해야 합니다.
-	// 8비트: BITMAPINFOHEADER + 256 * RGBQUAD (팔레트 있음)
-	int nColorTableEntries = 0;
-	if (bm.bmBitsPixel <= 8) 
-	{
-		nColorTableEntries = (1 << bm.bmBitsPixel); // 2^8 = 256
-	}
-	else
-	{
-		//8비트 이하가 아니면 이 함수는 지원하지 않음
-		return;
-	}
-
-	// BITMAPINFO 구조체 크기 계산
-	DWORD dwBiSize = sizeof(BITMAPINFOHEADER) + nColorTableEntries * sizeof(RGBQUAD);
-	BITMAPINFO* pbi = (BITMAPINFO*)new BYTE[dwBiSize];
-	if (!pbi) return;
-	ZeroMemory(pbi, dwBiSize);
-
-	pbi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	pbi->bmiHeader.biWidth = bm.bmWidth;
-	pbi->bmiHeader.biHeight = bm.bmHeight;
-	pbi->bmiHeader.biPlanes = 1;
-	pbi->bmiHeader.biBitCount = bm.bmBitsPixel;
-	pbi->bmiHeader.biCompression = BI_RGB;
-	pbi->bmiHeader.biClrUsed = nColorTableEntries;
-	
-	// 2. 픽셀 데이터 크기 계산 및 메모리 할당
-	DWORD dwWidth = bm.bmWidth;
-	DWORD dwHeight = bm.bmHeight;
-	DWORD dwBPP = bm.bmBitsPixel;
-
-	DWORD dwBytesPerLine = ((dwWidth * dwBPP + 31) / 32) * 4;
-	DWORD dwTotalSize = dwBytesPerLine * dwHeight;
-
-	BYTE* pPixels = new BYTE[dwTotalSize];
-	if (!pPixels) { delete[](BYTE*)pbi; return; }
-	
-
-	// 3. 픽셀 데이터 및 팔레트 정보 읽기 (DIB 형식으로)
-	HDC hdc = GetDC(NULL);
-	// 8비트의 경우 pbi->bmiColors에 팔레트 정보가 읽혀집니다.
-	int nScanlines = GetDIBits(hdc, hbmColour, 0, dwHeight, pPixels, pbi, DIB_RGB_COLORS);
-	ReleaseDC(NULL, hdc);
-
-	if (nScanlines == 0)
-	{
-		delete[] pPixels;
-		delete[](BYTE*)pbi;
-		return;
-	}
-
-	// 4. 픽셀 조작 (8비트)
-	if (dwBPP <= 8) // 8비트 이하 처리 (팔레트 색상 변경)
-	{
-		// 8비트 비트맵은 픽셀 데이터가 아닌 팔레트(bmiColors)를 조작해야 합니다.
-		RGBQUAD* pPalette = pbi->bmiColors;
-		for (int i = 0; i < nColorTableEntries; ++i)
-		{
-			//bmiColors가 흰색이면
-			if (pPalette[i].rgbRed == 255 && pPalette[i].rgbGreen == 255 && pPalette[i].rgbBlue == 255)
-			{
-				pPalette[i].rgbRed = GetRValue(crColor);
-				pPalette[i].rgbGreen = GetGValue(crColor);
-				pPalette[i].rgbBlue = GetBValue(crColor);
-				// rgbReserved는 그대로 유지
-			}									
-		}		
-	}
-	else
-	{
-		delete[] pPixels;
-		delete[](BYTE*)pbi;
-		return;
-	}
-
-	// 5. 비트맵 데이터 업데이트
-	HDC memDC = CreateCompatibleDC(NULL);
-	HBITMAP hOldBitmap = (HBITMAP)SelectObject(memDC, hbmColour);
-
-	// (선택 사항이지만 권장) 논리 팔레트 생성 및 선택
-	HPALETTE hPal = CreatePalette((LOGPALETTE*)pbi); // BITMAPINFO 구조체를 사용하여 LOGPALETTE로 변환 가능
-	HPALETTE hOldPal = SelectPalette(memDC, hPal, FALSE);
-	RealizePalette(memDC);
-
-	// SetDIBColorTable 호출
-	SetDIBColorTable(memDC, 0, nColorTableEntries, pbi->bmiColors);
-
-	// SetDIBits 호출 (memDC 사용)
-	SetDIBits(memDC, hbmColour, 0, dwHeight, pPixels, pbi, DIB_RGB_COLORS);
-
-	// 뒷정리
-	SelectObject(memDC, hOldBitmap);
-	if (hPal)
-	{
-		SelectPalette(memDC, hOldPal, FALSE);
-		DeleteObject(hPal);
-	}
-	DeleteDC(memDC);
-		
-	// 메모리 해제
-	delete[] pPixels;
-	delete[](BYTE*)pbi;
 }
 
 //파일에서 읽어	올때 사용
@@ -269,11 +345,11 @@ void SpriteManager::CreateSprite(string strImagePath, bool bTransparent)
 
 
 //파일에서 읽어	올때 사용 (색상 변경 포함 8비트만 적용됨) strImagePath이름 뒤에 RGB000000000 형식으로 색상값이 붙는다.
-void SpriteManager::CreateSprite(string strImagePath, COLORREF crMultiplyColor, bool bTransparent)
+void SpriteManager::CreateSprite(string strImagePath, COLORREF crColor, bool bTransparent)
 {
-	BYTE r = GetRValue(crMultiplyColor);
-	BYTE g = GetGValue(crMultiplyColor);
-	BYTE b = GetBValue(crMultiplyColor);
+	BYTE r = GetRValue(crColor);
+	BYTE g = GetGValue(crColor);
+	BYTE b = GetBValue(crColor);
 
 	string colorString(20, '\0');
 	int written_len = snprintf(&colorString[0], colorString.size(), "RGB%03d%03d%03d", (int)r, (int)g, (int)b);
@@ -296,10 +372,11 @@ void SpriteManager::CreateSprite(string strImagePath, COLORREF crMultiplyColor, 
 			{
 				DLOG("Mask %s", spriteMapImagePath.c_str());
 				HBITMAP hMaskBitmap = CreateBitmapMask(hBitmap, RGB(0, 0, 255));
-				m_MaskSpriteMap.insert(pair<string, HBITMAP>(spriteMapImagePath, hMaskBitmap));
-				ChangeBitmapColor(hBitmap, crMultiplyColor);
+				m_MaskSpriteMap.insert(pair<string, HBITMAP>(spriteMapImagePath, hMaskBitmap));				
 			}
 		}
+
+		ModifyDIBPaletteEntry(hBitmap, RGB(255, 255, 255), crColor);
 	}
 }
 
@@ -327,11 +404,11 @@ void SpriteManager::CreateSprite(string strImagePath, int nResourceID, bool bTra
 }
 
 //리소스에서 읽어 올때 사용 (색상 변경 포함 8비트만 적용됨)
-void SpriteManager::CreateSprite(string strImagePath, int nResourceID, COLORREF crMultiplyColor, bool bTransparent)
+void SpriteManager::CreateSprite(string strImagePath, int nResourceID, COLORREF crColor, bool bTransparent)
 {
-	BYTE r = GetRValue(crMultiplyColor);
-	BYTE g = GetGValue(crMultiplyColor);
-	BYTE b = GetBValue(crMultiplyColor);
+	BYTE r = GetRValue(crColor);
+	BYTE g = GetGValue(crColor);
+	BYTE b = GetBValue(crColor);
 
 	string colorString(20, '\0');
 	int written_len = snprintf(&colorString[0], colorString.size(), "RGB%03d%03d%03d", (int)r, (int)g, (int)b);
@@ -354,8 +431,33 @@ void SpriteManager::CreateSprite(string strImagePath, int nResourceID, COLORREF 
 			{
 				DLOG("Mask %s", spriteMapImagePath.c_str());
 				HBITMAP hMaskBitmap = CreateBitmapMask(hBitmap, RGB(0, 0, 255));
-				m_MaskSpriteMap.insert(pair<string, HBITMAP>(spriteMapImagePath, hMaskBitmap));
-				ChangeBitmapColor(hBitmap, crMultiplyColor);
+				m_MaskSpriteMap.insert(pair<string, HBITMAP>(spriteMapImagePath, hMaskBitmap));				
+			}
+		}
+
+		ModifyDIBPaletteEntry(hBitmap, RGB(255, 255, 255), crColor);
+	}
+}
+
+void SpriteManager::CreateAddModifySprite(string strImagePath, int nResourceID, COLORREF crColor, float fBrightness, bool bTransparent)
+{
+	//중복된 이미지 패스가 아니라면 추가해줌
+	if (m_SpriteMap.find(strImagePath) == m_SpriteMap.end())
+	{
+		DLOG("%s", strImagePath.c_str());
+		HBITMAP hBitmap = (HBITMAP)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(nResourceID), IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE | LR_CREATEDIBSECTION);		
+		m_SpriteMap.insert(pair<string, HBITMAP>(strImagePath, hBitmap));
+		HBITMAP modifyHBitmap = CreateTintedBitmap(hBitmap, crColor, fBrightness);
+		m_ModifySpriteMap.insert(pair<string, HBITMAP>(strImagePath, modifyHBitmap));
+		//투명이 되어야 한다면
+		if (bTransparent == true)
+		{
+			//중복된 이미지 패스가 아니라면 추가해줌
+			if (m_MaskSpriteMap.find(strImagePath) == m_MaskSpriteMap.end())
+			{
+				DLOG("Mask %s", strImagePath.c_str());
+				HBITMAP hMaskBitmap = CreateBitmapMask(hBitmap, RGB(0, 0, 255));
+				m_MaskSpriteMap.insert(pair<string, HBITMAP>(strImagePath, hMaskBitmap));
 			}
 		}
 	}
@@ -364,6 +466,11 @@ void SpriteManager::CreateSprite(string strImagePath, int nResourceID, COLORREF 
 HBITMAP SpriteManager::GetSprite(string strImagePath)
 {	
 	return m_SpriteMap.find(strImagePath)->second;
+}
+
+HBITMAP SpriteManager::GetModifySprite(string strImagePath)
+{
+	return m_ModifySpriteMap.find(strImagePath)->second;
 }
 
 HBITMAP SpriteManager::GetMaskSprite(string strImagePath)
@@ -375,6 +482,16 @@ bool SpriteManager::isMaskImage(string strImagePath)
 {
 	//마스크 이미지가 있다면 true
 	if (m_MaskSpriteMap.find(strImagePath) != m_MaskSpriteMap.end())
+	{
+		return true;
+	}
+	return false;
+}
+
+bool SpriteManager::isModifyImage(string strImagePath)
+{
+	//마스크 이미지가 있다면 true
+	if (m_ModifySpriteMap.find(strImagePath) != m_ModifySpriteMap.end())
 	{
 		return true;
 	}

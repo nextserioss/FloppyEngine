@@ -9,6 +9,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 int GameEngineMainLoop::EngineStart(string strGamename, GameState* state, int nScreenWidth, int nScreenHeight, HINSTANCE hInstance, int nCmdShow)
 {	
+#ifdef _DEBUG
     // 새 콘솔 할당
     if (AllocConsole())
     {
@@ -45,7 +46,7 @@ int GameEngineMainLoop::EngineStart(string strGamename, GameState* state, int nS
         // 콘솔 창 제목 설정
         SetConsoleTitle(TEXT("Debug Log Console"));
     }    
-
+#endif
     // 1. 윈도우 클래스 정의 및 등록
     const char* szClassName = strGamename.c_str();
     WNDCLASSEX wc;
@@ -144,8 +145,8 @@ int GameEngineMainLoop::EngineStart(string strGamename, GameState* state, int nS
             if (m_fTimeDelta < (1.0f / m_nTargetFps))
             {
                 //* 1000으로 밀리세컨드로 만든다.
-                int nSleepTime = ((1.0f / m_nTargetFps) - m_fTimeDelta) * 1000;
-                Sleep(nSleepTime);
+                float fSleepTime = ((1.0f / m_nTargetFps) - m_fTimeDelta) * 1000;
+                Sleep((DWORD)fSleepTime);
 
 				//쉬고 난뒤 다시 시간 측정
                 nCurrTime = GetTickCount();
@@ -171,7 +172,7 @@ int GameEngineMainLoop::EngineStart(string strGamename, GameState* state, int nS
             if (fTimeElapsed >= 1.0f)
             {
                 fFPS = (float)nFrameCnt / fTimeElapsed;
-                DLOG("FPS %f", fFPS);
+                //DLOG("FPS %f", fFPS);
                 fTimeElapsed = 0.0f;
                 nFrameCnt = 0;
             }
@@ -183,8 +184,10 @@ int GameEngineMainLoop::EngineStart(string strGamename, GameState* state, int nS
 	//타이머 정밀도 복원
     timeEndPeriod(1);
 
+#ifdef _DEBUG
     // 프로그램 종료 직전에 콘솔 해제 (선택 사항이지만 권장)
     FreeConsole();
+#endif
 
     return Msg.wParam;
 }

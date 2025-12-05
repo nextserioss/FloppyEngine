@@ -37,6 +37,7 @@
     <ClInclude Include="Header\Engine\SpriteManager.h" />
     <ClInclude Include="Header\Engine\Text.h" />
     <ClInclude Include="Header\Engine\Transform.h" />
+    <ClInclude Include="Header\Engine\Types.h" />
     <ClInclude Include="Header\FloppyEngine.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

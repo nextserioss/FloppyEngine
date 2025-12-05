@@ -3,6 +3,59 @@
 #include "../Header/IntroState.h"
 #include "../Header/PlayState.h"
 
+const bool CLOUD_FLIP[] = { true, false, true, false };
+const float CLOUD_X[] = { 640.0f, 940.0f, 1240.0f, 1480.0f };
+const float CLOUD_Y[] = { 30.0f, 85.0f, 55.0f, 105.0f };
+const float CLOUD_TIME[] = { 45.0f, 38.0f, 55.0f, 70.0f };
+const float CLOUD_DIST_Y = -100.0f;
+
+//케릭터
+#define INIT_X 280
+#define INIT_Y 388
+#define PLAYER_BOXCOLLISION_OFFSET 5
+#define FRAME_ANIMATION_INTERVAL 0.12f
+#define SPEEDUP_SPEED 340
+#define MAX_LEFT_MOVE 0 
+#define MAX_RIGHT_MOVE 560
+#define JUMP_TIME 0.5f
+#define JUMP_Y 270
+#define INVICIVLE_TIME 2.0f
+#define CHARACTER_SPEED_UP_TIME 3.0f
+
+//피격 이펙트
+#define DAMAGE_RED_DELAY_TIME 0.1f
+
+//자동차
+#define CAR_BOXCOLLISION_OFFSET 5
+#define CAR_INIT_X -100.0f
+#define CAR_INIT_Y 440.0f
+#define CAR_LEFT_X_MAX -100.0f
+#define CAR_RIGHT_X_MAX 640.0f
+#define CAR_ARROW_LEFT_MOVE_INIT_X 590.0f
+#define CAR_ARROW_RIGHT_MOVE_INIT_X -0.0f
+#define MIN_CAR_INTERVAL 3.0f
+#define MINUS_CAR_INTERVAL 0.5f
+
+//과일
+#define LOW_FRUIT 0
+#define HIGH_FRUIT 1
+#define BAD_FRUIT 2
+#define SPECTIAL_FRUIT 3
+#define DOWN_Y 500.0f
+#define MAX_DOWN_INTERVAL 0.1f
+#define MAX_DOWN_SPEED 1.7f
+#define MIN_LOW_FRUIT_RATE 10
+#define MIN_HIGH_FRUIT_RATE 30
+#define MINUS_FRUIT_DOWN_INTERVAL 0.1f
+#define MINUS_FRUIT_DOWN_SPEED 0.2f
+#define MINUS_FRUIT_RATE 5
+
+//과일 이펙트
+#define FRUIT_EFFECT_TIME 0.05f
+
+//일정 시간 마다 난이도가 올라간다.
+#define DIFICULTY_TIME 7.0f
+
 void PlayState::Init(GameEngine* game)
 {
 	SpriteManager::GetInstance()->CreateSprite("Background.bmp", IDC_BACKGROUND, false);
@@ -29,7 +82,7 @@ void PlayState::Init(GameEngine* game)
 	SpriteManager::GetInstance()->CreateSprite("Cloud_2.bmp", IDC_CLOUD_2, true);
 	SpriteManager::GetInstance()->CreateSprite("Red.bmp", IDC_RED, true);
 
-	for (int i = 0; i < LAYER_NUM; i++)
+	for (int i = 0; i < PLAYSTATE_LAYER_NUM; i++)
 	{
 		char layerName[128];
 		sprintf_s(layerName, "layer_%d", i);
@@ -40,60 +93,26 @@ void PlayState::Init(GameEngine* game)
 	Composite* background = Composite::CreateSprite(game, "Background", "Background.bmp");
 	m_Layer[0]->Add(background);
 
-	Composite* scoreBack = Composite::CreateSprite(game, "ScoreBack", "ScoreTextBack.bmp");
-	m_Layer[2]->Add(scoreBack);
-
 	CloudInit(game);
 	PlayerInit(game);
 	FruitInit(game);
 	CarInit(game);
 	UIInit(game);
 	DamageInit(game);
-
-	//사운드
-	Composite* soundBGMComp = Composite::CreateBGMSound(game, "BGMSound", "WoogeokBGM.mp3");
-	m_BGMSound = (Sound*)soundBGMComp->FindComponent(COMPONENT_NAME[SOUND]);
-	m_Layer[2]->Add(soundBGMComp);
-	m_BGMSound->Play();
-
-	Composite* soundEatComp = Composite::CreateSound(game, "EatSound", "Eat_0.wav");
-	m_EatSound = (Sound*)soundEatComp->FindComponent(COMPONENT_NAME[SOUND]);
-	m_Layer[2]->Add(soundEatComp);
-
-	Composite* soundSpecialEatComp = Composite::CreateSound(game, "SpecialSound", "Eat_1.wav");
-	m_SpecialEatSound = (Sound*)soundSpecialEatComp->FindComponent(COMPONENT_NAME[SOUND]);
-	m_Layer[2]->Add(soundSpecialEatComp);
-
-	Composite* soundDamageComp = Composite::CreateSound(game, "DamageSound", "Damage.wav");
-	m_DamageSound = (Sound*)soundDamageComp->FindComponent(COMPONENT_NAME[SOUND]);
-	m_Layer[2]->Add(soundDamageComp);
-
-	if (RegDataManager::GetInstance()->ReadDWORDValue("SoundOff") == 0)
-	{
-		m_BGMSound->VolumeOnOff(true);
-		m_EatSound->VolumeOnOff(true);
-		m_SpecialEatSound->VolumeOnOff(true);
-		m_DamageSound->VolumeOnOff(true);
-	}
-	else
-	{
-		m_BGMSound->VolumeOnOff(false);
-		m_EatSound->VolumeOnOff(false);
-		m_SpecialEatSound->VolumeOnOff(false);
-		m_DamageSound->VolumeOnOff(false);
-	}
+	SoundInit(game);
+	
 }
 
 void PlayState::CloudInit(GameEngine* game)
 {
-	for (int i = 0; i < MAX_CLOUD_NUM; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_CLOUD_NUM; i++)
 	{
 		char strCloud[128];
 		sprintf_s(strCloud, "Cloud_%d", i);
 		char strCloudImage[128];
 		sprintf_s(strCloudImage, "Cloud_%d.bmp", i % 3);
 		Composite* cloud = Composite::CreateSprite(game, strCloud, strCloudImage);
-		m_CloudTrans[i] = (Transform*)cloud->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_CloudTrans[i] = (Transform*)cloud->FindComponent(TRANSFORM);
 		m_CloudTrans[i]->m_fX = CLOUD_X[i];
 		m_CloudTrans[i]->m_fY = CLOUD_Y[i];
 		m_Layer[0]->Add(cloud);
@@ -110,8 +129,8 @@ void PlayState::CloudInit(GameEngine* game)
 void PlayState::PlayerInit(GameEngine* game)
 {
 	m_PlayerComp = Composite::CreateSpriteBox(game, "Player", "Player_0.bmpRGB239148099", PLAYER_BOXCOLLISION_OFFSET, PLAYER_BOXCOLLISION_OFFSET);
-	m_PlayerBoxCollider = (BoxCollider*)m_PlayerComp->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-	m_PlayerTrans = (Transform*)m_PlayerComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_PlayerBoxCollider = (BoxCollider*)m_PlayerComp->FindComponent(BOXCOLLIDER);
+	m_PlayerTrans = (Transform*)m_PlayerComp->FindComponent(TRANSFORM);
 	m_PlayerTrans->m_fX = INIT_X;
 	m_PlayerTrans->m_fY = INIT_Y;
 	m_Layer[2]->Add(m_PlayerComp);
@@ -130,7 +149,7 @@ void PlayState::PlayerInit(GameEngine* game)
 void PlayState::DamageInit(GameEngine* game)
 {
 	m_DamageRedComp = Composite::CreateSprite(game, "DamageRed", "Red.bmp");
-	m_DamageRedTrans = (Transform*)m_DamageRedComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_DamageRedTrans = (Transform*)m_DamageRedComp->FindComponent(TRANSFORM);
 	m_DamageRedTrans->m_fScaleX = 640;
 	m_DamageRedTrans->m_fScaleY = 480;
 	m_Layer[2]->Add(m_DamageRedComp);
@@ -139,24 +158,24 @@ void PlayState::DamageInit(GameEngine* game)
 
 void PlayState::FruitInit(GameEngine* game)
 {
-	for (int i = 0; i < MAX_FRUIT; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_FRUIT; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "fruit_%d", i);
 		m_FruitComp[i] = Composite::CreateSpriteBox(game, compName, "Fruit.bmpRGB189230074", 0, 0);
-		m_FruitRenderer[i] = (Renderer*)m_FruitComp[i]->FindComponent(COMPONENT_NAME[RENDERER]);
-		m_FruitBoxCollider[i] = (BoxCollider*)m_FruitComp[i]->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-		m_FruitTrans[i] = (Transform*)m_FruitComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_FruitRenderer[i] = (Renderer*)m_FruitComp[i]->FindComponent(RENDERER);
+		m_FruitBoxCollider[i] = (BoxCollider*)m_FruitComp[i]->FindComponent(BOXCOLLIDER);
+		m_FruitTrans[i] = (Transform*)m_FruitComp[i]->FindComponent(TRANSFORM);
 		m_FruitTrans[i]->m_fY = -m_FruitRenderer[i]->GetHeightF();
 		m_Layer[1]->Add(m_FruitComp[i]);
 	}
 
-	for (int i = 0; i < MAX_FRUIT_EFFECT; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_FRUIT_EFFECT; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "fruitEffect_%d", i);
 		m_FruitEffectComp[i] = Composite::CreateSpriteBox(game, compName, "FruitEffect_0.bmp", 0, 0);
-		m_FruitEffectTrans[i] = (Transform*)m_FruitEffectComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_FruitEffectTrans[i] = (Transform*)m_FruitEffectComp[i]->FindComponent(TRANSFORM);
 		m_Layer[2]->Add(m_FruitEffectComp[i]);
 		m_FruitEffectComp[i]->SetEnable(false);
 	}
@@ -167,27 +186,28 @@ void PlayState::FruitInit(GameEngine* game)
 	m_FruitEffectImage.push_back("FruitEffect_3.bmp");
 	m_FruitEffectImage.push_back("FruitEffect_4.bmp");
 }
+
 void PlayState::CarInit(GameEngine* game)
 {
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_CAR; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "Car_%d", i);
 		m_CarComp[i] = Composite::CreateSpriteBox(game, compName, "Car.bmp", CAR_BOXCOLLISION_OFFSET, CAR_BOXCOLLISION_OFFSET);
-		m_CarBoxCollider[i] = (BoxCollider*)m_CarComp[i]->FindComponent(COMPONENT_NAME[BOXCOLLIDER]);
-		m_CarTrans[i] = (Transform*)m_CarComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_CarBoxCollider[i] = (BoxCollider*)m_CarComp[i]->FindComponent(BOXCOLLIDER);
+		m_CarTrans[i] = (Transform*)m_CarComp[i]->FindComponent(TRANSFORM);
 		m_CarTrans[i]->m_fX = CAR_INIT_X;
 		m_CarTrans[i]->m_fY = CAR_INIT_Y;
 		m_Layer[1]->Add(m_CarComp[i]);
 	}
 
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_CAR; i++)
 	{
 		char compName[128];
 		sprintf_s(compName, "CarArrow_%d", i);
 		m_CarArrowComp[i] = Composite::CreateSprite(game, compName, "RightArrow.bmp");
-		m_CarArrowRenderer[i] = (Renderer*)m_CarArrowComp[i]->FindComponent(COMPONENT_NAME[RENDERER]);
-		m_CarArrowTrans[i] = (Transform*)m_CarArrowComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_CarArrowRenderer[i] = (Renderer*)m_CarArrowComp[i]->FindComponent(RENDERER);
+		m_CarArrowTrans[i] = (Transform*)m_CarArrowComp[i]->FindComponent(TRANSFORM);
 		m_CarArrowTrans[i]->m_fX = -100.0f;
 		m_CarArrowTrans[i]->m_fY = CAR_INIT_Y;
 		m_Layer[1]->Add(m_CarArrowComp[i]);
@@ -197,29 +217,68 @@ void PlayState::CarInit(GameEngine* game)
 
 void PlayState::UIInit(GameEngine* game)
 {
+	Composite* scoreBack = Composite::CreateSprite(game, "ScoreBack", "ScoreTextBack.bmp");
+	m_Layer[2]->Add(scoreBack);
+
 	sprintf_s(m_Score, "StageScore : %d", m_nScore);
-	m_ScoreComp = Composite::CreateText(game, "score", m_Score);
-	m_ScoreText = (Text*)m_ScoreComp->FindComponent(COMPONENT_NAME[TEXTCOMP]);
-	Transform* scoreText = (Transform*)m_ScoreComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_ScoreComp = Composite::CreateTextColorFontSize(game, "score", m_Score, RGB(255, 255, 255), 13);
+	m_ScoreText = (Text*)m_ScoreComp->FindComponent(TEXTCOMP);
+	Transform* scoreText = (Transform*)m_ScoreComp->FindComponent(TRANSFORM);
 	scoreText->m_fX = 3;
-	scoreText->m_fY = 4;
+	scoreText->m_fY = 6;
 	m_Layer[2]->Add(m_ScoreComp);
 
-	for (int i = 0; i < MAX_HEART; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_HEART; i++)
 	{
 		m_HeartComp[i] = Composite::CreateSprite(game, "Heart", "Heart.bmpRGB255000074");
-		m_HeartTrans[i] = (Transform*)m_HeartComp[i]->FindComponent(COMPONENT_NAME[TRANSFORM]);
+		m_HeartTrans[i] = (Transform*)m_HeartComp[i]->FindComponent(TRANSFORM);
 		m_HeartTrans[i]->m_fX = 530.0f + (i * 35.0f);
 		m_HeartTrans[i]->m_fY = 0;
 		m_Layer[2]->Add(m_HeartComp[i]);
 	}
 
 	m_GameOverComp = Composite::CreateSprite(game, "GameOver", "GameOver.bmp");
-	m_GameOverTrans = (Transform*)m_GameOverComp->FindComponent(COMPONENT_NAME[TRANSFORM]);
+	m_GameOverTrans = (Transform*)m_GameOverComp->FindComponent(TRANSFORM);
 	m_GameOverTrans->m_fX = 186;
 	m_GameOverTrans->m_fY = 214;
 	m_Layer[2]->Add(m_GameOverComp);
 	m_GameOverComp->SetEnable(false);
+}
+
+void PlayState::SoundInit(GameEngine* game)
+{
+	//사운드
+	Composite* soundBGMComp = Composite::CreateBGMSound(game, "BGMSound", "WoogeokBGM.mp3");
+	m_BGMSound = (Sound*)soundBGMComp->FindComponent(SOUND);
+	m_Layer[2]->Add(soundBGMComp);
+	m_BGMSound->Play();
+
+	Composite* soundEatComp = Composite::CreateSound(game, "EatSound", "Eat_0.wav");
+	m_EatSound = (Sound*)soundEatComp->FindComponent(SOUND);
+	m_Layer[2]->Add(soundEatComp);
+
+	Composite* soundSpecialEatComp = Composite::CreateSound(game, "SpecialSound", "Eat_1.wav");
+	m_SpecialEatSound = (Sound*)soundSpecialEatComp->FindComponent(SOUND);
+	m_Layer[2]->Add(soundSpecialEatComp);
+
+	Composite* soundDamageComp = Composite::CreateSound(game, "DamageSound", "Damage.wav");
+	m_DamageSound = (Sound*)soundDamageComp->FindComponent(SOUND);
+	m_Layer[2]->Add(soundDamageComp);
+
+	if (RegDataManager::GetInstance()->ReadDWORDValue("SoundOff") == 0)
+	{
+		m_BGMSound->VolumeOnOff(true);
+		m_EatSound->VolumeOnOff(true);
+		m_SpecialEatSound->VolumeOnOff(true);
+		m_DamageSound->VolumeOnOff(true);
+	}
+	else
+	{
+		m_BGMSound->VolumeOnOff(false);
+		m_EatSound->VolumeOnOff(false);
+		m_SpecialEatSound->VolumeOnOff(false);
+		m_DamageSound->VolumeOnOff(false);
+	}
 }
 
 void PlayState::Pause()
@@ -277,15 +336,7 @@ void PlayState::HandleEvents(GameEngine* game)
 	{
 		game->Quit();
 	}
-	/*
-	if (KEY_DOWN_KEYHIT(VK_F1) == true)
-	{
-		m_FruitEffectComp[0]->SetEnable(true);
-		m_FruitEffectTrans[0]->TweenFrame(m_FruitEffectImage, 0.05f);
-		m_FruitEffectTrans[0]->FrameEndCallback(this, "FruitEffect_0");
-		m_FruitEffectTrans[0]->FrameTweenPlay();
-	}
-	*/
+
 }
 
 void PlayState::Update(GameEngine* game)
@@ -334,7 +385,7 @@ void PlayState::FruitUpdate()
 		m_FruitTrans[m_nFruitIndex]->TweenMoveY(TweenArg::TYPE_EASE_IN_CIRC, 0.0f, DOWN_Y, m_nFruitDownSpeed);
 		m_FruitTrans[m_nFruitIndex]->TweenPlay();
 		m_nFruitIndex++;
-		if (m_nFruitIndex == MAX_FRUIT)
+		if (m_nFruitIndex == PLAYSTATE_MAX_FRUIT)
 		{
 			m_nFruitIndex = 0;
 		}
@@ -411,7 +462,7 @@ void PlayState::CarUpdate()
 			m_CarTrans[m_nCarIndex]->TweenPlay();
 		}
 		m_nCarIndex++;
-		if (m_nCarIndex == MAX_CAR)
+		if (m_nCarIndex == PLAYSTATE_MAX_CAR)
 		{
 			m_nCarIndex = 0;
 		}
@@ -433,7 +484,7 @@ void PlayState::CarUpdate()
 
 void PlayState::CollisionUpdate()
 {
-	for (int i = 0; i < MAX_FRUIT; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_FRUIT; i++)
 	{
 		if (m_PlayerBoxCollider->intersectRect(m_FruitBoxCollider[i]->GetRect()) == true)
 		{
@@ -474,7 +525,7 @@ void PlayState::CollisionUpdate()
 
 					m_HeartComp[m_nHeartIndex]->SetEnable(false);
 					m_nHeartIndex++;
-					if (m_nHeartIndex == MAX_HEART)
+					if (m_nHeartIndex == PLAYSTATE_MAX_HEART)
 					{
 						DLOG("Game Over");
 						m_bGameOver = true;
@@ -500,7 +551,7 @@ void PlayState::CollisionUpdate()
 		}
 	}
 
-	for (int i = 0; i < MAX_CAR; i++)
+	for (int i = 0; i < PLAYSTATE_MAX_CAR; i++)
 	{
 		if (m_bInvincible == false)
 		{
@@ -518,7 +569,7 @@ void PlayState::CollisionUpdate()
 
 				m_HeartComp[m_nHeartIndex]->SetEnable(false);
 				m_nHeartIndex++;
-				if (m_nHeartIndex == MAX_HEART)
+				if (m_nHeartIndex == PLAYSTATE_MAX_HEART)
 				{
 					DLOG("Game Over");
 					m_bGameOver = true;
@@ -545,7 +596,7 @@ void PlayState::FruitEffectStart(int nFruitIndex)
 	m_FruitEffectTrans[m_nFruitEffectIndex]->FrameEndCallback(this, fruitEffectCallbackName);
 	m_FruitEffectTrans[m_nFruitEffectIndex]->FrameTweenPlay();
 	m_nFruitEffectIndex++;
-	if (m_nFruitEffectIndex >= MAX_FRUIT_EFFECT)
+	if (m_nFruitEffectIndex >= PLAYSTATE_MAX_FRUIT_EFFECT)
 	{
 		m_nFruitEffectIndex = 0;
 	}
@@ -560,7 +611,7 @@ void PlayState::PalyerSpeedUpUpdate()
 		if (m_fPlayerSpeedUpTimeElapsed > CHARACTER_SPEED_UP_TIME)
 		{
 			//DLOG("Speed Default");
-			m_nPlayerSpeed = DEFAULT_SPEED;
+			m_nPlayerSpeed = PLAYSTATE_DEFAULT_SPEED;
 			m_bSpeedUp = false;
 		}
 	}

@@ -3,14 +3,16 @@
 #include "../../Header/Engine/GameEngineMainLoop.h"
 #include "../../Header/Engine/Composite.h"
 #include "../../Header/Engine/GameState.h"
+#include "../../Header/Engine/BoxCollider.h"
 #include "../../Header/Engine/LogManager.h"
 
 Transform::Transform()
 {
-	DLOG("Transform");
+	//DLOG("Transform");
 	m_pfnTween[TweenArg::TYPE_MOVE] = &Transform::MoveTween;
 	m_pfnTween[TweenArg::TYPE_MOVE_X] = &Transform::MoveXTween;
 	m_pfnTween[TweenArg::TYPE_MOVE_Y] = &Transform::MoveYTween;
+	m_pfnTween[TweenArg::TYPE_MOVE_SCALE] = &Transform::MoveScaleTween;
 	m_pfnTween[TweenArg::TYPE_SCALE] = &Transform::ScaleTween;
 	m_pfnTween[TweenArg::TYPE_FRAME] = &Transform::FrameTween;
 	m_pfnTween[TweenArg::TYPE_DELAY] = &Transform::DelayTween;
@@ -41,6 +43,11 @@ Transform::Transform()
 void Transform::Add(GameEngine* gameEngine, Composite* composite)
 {
 	m_pComposite = composite;
+	
+}
+void Transform::Init(BoxCollider* boxCollider)
+{
+	m_pBoxCollider = boxCollider;
 }
 
 void Transform::Update(GameEngine* gameEngine)
@@ -136,6 +143,56 @@ void Transform::MoveYTween(TweenArg arg)
 	}
 }
 
+void Transform::MoveScaleTween(TweenArg arg)
+{
+	m_fTimeElapsed += ENGINE_MAIN->m_fTimeDelta;
+
+	//EndX가 StartX보다 더 클 경우 arg.m_fStartX - fValueX이고 EndX가 StartX보다 더 작을경우 arg.m_fStartX + fValueX이다.
+	int nValueReverseX = 1;
+	if (arg.m_fStartX - arg.m_fEndX > 0)
+	{
+		nValueReverseX = -1;
+	}
+	float fValueX = (this->*m_pfnEase[arg.m_nEaseType])(m_fTimeElapsed, 0.0f, abs(arg.m_fStartX - arg.m_fEndX), arg.m_fDurationSecond);
+	m_fX = arg.m_fStartX + (fValueX * nValueReverseX);
+	
+	int nValueReverseY = 1;
+	if (arg.m_fStartY - arg.m_fEndY > 0)
+	{
+		nValueReverseY = -1;
+	}
+	float fValueY = (this->*m_pfnEase[arg.m_nEaseType])(m_fTimeElapsed, 0.0f, abs(arg.m_fStartY - arg.m_fEndY), arg.m_fDurationSecond);
+	m_fY = arg.m_fStartY + (fValueY * nValueReverseY);
+
+	nValueReverseX = 1;
+	if (arg.m_fSecondStartX - arg.m_fSecondEndX > 0)
+	{
+		nValueReverseX = -1;
+	}
+	fValueX = (this->*m_pfnEase[arg.m_nEaseType])(m_fTimeElapsed, 0.0f, abs(arg.m_fSecondStartX - arg.m_fSecondEndX), arg.m_fDurationSecond);
+	m_fScaleX = arg.m_fSecondStartX + (fValueX * nValueReverseX);
+
+	nValueReverseY = 1;
+	//DLOG("arg.m_fSecondStartY = %f  arg.m_fSecondEndY = %f", arg.m_fSecondStartY, arg.m_fSecondEndY);
+	if (arg.m_fSecondStartY - arg.m_fSecondEndY > 0)
+	{
+		nValueReverseY = -1;
+	}
+	fValueY = (this->*m_pfnEase[arg.m_nEaseType])(m_fTimeElapsed, 0.0f, abs(arg.m_fSecondStartY - arg.m_fSecondEndY), arg.m_fDurationSecond);
+	m_fScaleY = arg.m_fSecondStartY + (fValueY * nValueReverseY);
+	
+	//DLOG("m_fX = %f  m_fY = %f  m_fScaleX = %f  m_fScaleY = %f", m_fX, m_fY, m_fScaleX, m_fScaleY);
+
+	if (m_fTimeElapsed >= arg.m_fDurationSecond)
+	{
+		m_fX = arg.m_fEndX;
+		m_fY = arg.m_fEndY;
+		m_fScaleX = arg.m_fSecondEndX;
+		m_fScaleY = arg.m_fSecondEndY;
+		AnimationNext();
+	}
+}
+
 void Transform::ScaleTween(TweenArg arg)
 {
 	m_fTimeElapsed += ENGINE_MAIN->m_fTimeDelta;
@@ -175,13 +232,13 @@ void Transform::FrameTween(TweenArg arg)
 	}
 	if (m_fFrameTimeElapsed >= arg.m_fInterval)
 	{
-		if (m_nFrameIndex >= arg.m_frameImage.size())
+		if (m_nFrameIndex >= (int)arg.m_frameImage.size())
 		{
 			m_nFrameIndex = 0;
 			FrameAnimationNext();
 			return;
 		}
-		Renderer* renderer = (Renderer*)m_pComposite->FindComponent(COMPONENT_NAME[RENDERER]);
+		Renderer* renderer = (Renderer*)m_pComposite->FindComponent(RENDERER);
 		//DLOG("%s", arg.m_frameImage[m_nFrameIndex].c_str());
 		renderer->ChangeBitmap(arg.m_frameImage[m_nFrameIndex]);
 		m_fFrameTimeElapsed = 0.0f;
@@ -383,7 +440,23 @@ void Transform::TweenMoveY(int nEaseType, float fStartY, float fEndY, float fDur
 
 	m_TweenSequnce.push(arg);
 }
+void Transform::TweenMoveScale(int nEaseType, float fStartX, float fStartY, float fEndX, float fEndY, float fSecondStartX, float fSecondStartY, float fSecondEndX, float fSecondEndY, float fDurationSecond)
+{
+	TweenArg arg;
+	arg.m_nType = TweenArg::TYPE_MOVE_SCALE;
+	arg.m_nEaseType = nEaseType;
+	arg.m_fStartX = fStartX;
+	arg.m_fStartY = fStartY;
+	arg.m_fEndX = fEndX;
+	arg.m_fEndY = fEndY;
+	arg.m_fSecondStartX = fSecondStartX;
+	arg.m_fSecondStartY = fSecondStartY;
+	arg.m_fSecondEndX = fSecondEndX;
+	arg.m_fSecondEndY = fSecondEndY;
+	arg.m_fDurationSecond = fDurationSecond;
 
+	m_TweenSequnce.push(arg);
+}
 void Transform::TweenScale(int nEaseType, float fStartX, float fStartY, float fEndX, float fEndY, float fDurationSecond)
 {
 	TweenArg arg;
@@ -491,4 +564,33 @@ bool Transform::IsTween()
 bool Transform::IsFrameTween()
 {
 	return m_bFrameTweenPlay;
+}
+
+void Transform::SetXY(float x, float y)
+{
+	m_fX = x;
+	m_fY = y;
+	if (m_pBoxCollider != NULL)
+	{		
+		m_pBoxCollider->SettingRect();
+	}
+
+}
+
+void Transform::SetX(float x)
+{
+	m_fX = x;
+	if (m_pBoxCollider != NULL)
+	{		
+		m_pBoxCollider->SettingRect();
+	}
+}
+
+void Transform::SetY(float y)
+{
+	m_fY = y;
+	if (m_pBoxCollider != NULL)
+	{		
+		m_pBoxCollider->SettingRect();
+	}
 }
